@@ -1,0 +1,4 @@
+.env
+__pycache__/
+*.pyc
+.med_app_venv/
