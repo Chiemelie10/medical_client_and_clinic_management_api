@@ -42,6 +42,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     "accounts.apps.AccountsConfig",
+    "clinics.apps.ClinicsConfig",
+    "locations.apps.LocationsConfig",
 ]
 
 MIDDLEWARE = [
@@ -145,3 +147,5 @@ PASSWORD_HASHERS = [
     "django.contrib.auth.hashers.Argon2PasswordHasher",
     "django.contrib.auth.hashers.PBKDF2PasswordHasher",
 ]
+
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
