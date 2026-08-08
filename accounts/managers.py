@@ -1,5 +1,3 @@
-"""This file defines the UserManager class that is necessary when using a custom user model. """
-
 from typing import Any
 from django.contrib.auth.base_user import BaseUserManager
 

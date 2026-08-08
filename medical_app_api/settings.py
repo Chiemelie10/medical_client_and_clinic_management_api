@@ -41,9 +41,12 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
+    "django.contrib.postgres",
+
     "accounts.apps.AccountsConfig",
     "clinics.apps.ClinicsConfig",
     "locations.apps.LocationsConfig",
+    "access_control.apps.AccessControlConfig",
 ]
 
 MIDDLEWARE = [
