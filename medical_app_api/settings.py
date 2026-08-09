@@ -17,7 +17,14 @@ import os
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+LOGS_DIR = os.path.join(BASE_DIR, 'logs')
+
+if not os.path.exists(LOGS_DIR):
+    os.makedirs(LOGS_DIR)
+
 load_dotenv(BASE_DIR / ".env")
+
+APP_ENV = os.getenv('APP_ENV')
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
@@ -136,9 +143,18 @@ STATIC_URL = 'static/'
 
 MAILERS = {
     'default': {
-        'BACKEND': 'django.core.mail.backends.console.EmailBackend',
+        'BACKEND': 'django.core.mail.backends.console.EmailBackend' if APP_ENV == 'test' else 'django.core.mail.backends.smtp.EmailBackend',
+        "OPTIONS": {
+            "host": os.getenv('EMAIL_HOST'),
+            "port": 587,
+            "username": os.getenv('EMAIL_HOST_USER'),
+            "password": os.getenv('EMAIL_HOST_PASSWORD'),
+            "use_tls": True,
+        },
     },
 }
+
+DEFAULT_FROM_EMAIL="NoLineMed <chiemelieeze10@gmail.com>"
 
 AUTH_USER_MODEL = "accounts.User"
 
@@ -146,9 +162,112 @@ MEDIA_URL = "/media/"
 
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
+# Password hashers used by the application. Only the first one is used.
 PASSWORD_HASHERS = [
     "django.contrib.auth.hashers.Argon2PasswordHasher",
     "django.contrib.auth.hashers.PBKDF2PasswordHasher",
 ]
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Celery broker url
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL")
+
+# Email verification OTP expiration duration in seconds
+EMAIL_OTP_EXPIRATION = int(os.getenv("EMAIL_OTP_EXPIRATION", "600"))
+
+# Cache configuration
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": os.getenv("CACHE_LOCATION"),
+    }
+}
+
+REST_FRAMEWORK = {
+    "EXCEPTION_HANDLER": "medical_app_api.exceptions.custom_exception_handler",
+}
+
+# Logging configuration
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+
+    'formatters': {
+        'verbose': {
+            'format': '[{asctime}] {levelname} {module} [{name}:{lineno}] {message}',
+            'style': '{',
+            'datefmt': '%Y-%m-%d %H:%M:%S',
+        },
+        'simple': {
+            'format': '{levelname}: {message}',
+            'style': '{',
+        },
+        'color': {
+            '()': 'colorlog.ColoredFormatter',
+            'format': '%(log_color)s[%(asctime)s] %(levelname)s [%(name)s:%(lineno)d]%(reset)s %(message)s',
+            'datefmt': '%Y-%m-%d %H:%M:%S',
+            'log_colors': {
+                'DEBUG': 'cyan',
+                'INFO': 'green',
+                'WARNING': 'yellow',
+                'ERROR': 'red',
+                'CRITICAL': 'bold_red',
+            },
+        },
+    },
+
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            "level": "INFO",
+            'formatter': 'color' if APP_ENV != 'production' else 'verbose'
+        },
+        'file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(BASE_DIR, LOGS_DIR, 'django.log'),
+            'maxBytes': 10 * 1024 * 1024,
+            'backupCount': 5,
+            'formatter': 'verbose',
+            "encoding": "utf-8",
+        },
+        'error_file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(BASE_DIR, LOGS_DIR, 'errors.log'),
+            'maxBytes': 5 * 1024 * 1024,
+            'backupCount': 5,
+            'level': 'ERROR',
+            'formatter': 'verbose',
+            "encoding": "utf-8",
+        },
+    },
+
+    'root': {
+        'handlers': ['console', 'file', 'error_file'],
+        'level': 'INFO'
+    },
+
+    'loggers': {
+        'django': {
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'django.request': {
+            'level': "WARNING",
+            'propagate': True,
+        },
+        'accounts': {
+            'level': 'INFO',
+            'propagate': True,
+        },
+        "clinics": {
+            "level": "INFO",
+            "propagate": True,
+        },
+
+        "access_control": {
+            "level": "INFO",
+            "propagate": True,
+        },
+    }
+}

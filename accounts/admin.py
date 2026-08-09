@@ -7,26 +7,34 @@ from .models import User
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
+    """Admin configuration for the email-based user model."""
+
+    model = User
+    ordering = ("-date_joined",)
+    list_per_page = 50
+    list_select_related = True
+    filter_horizontal = ("groups", "user_permissions")
 
     @admin.display(description="Thumbnail")
     def thumbnail_preview(self, obj):
         if obj.thumbnail:
             return format_html(
-                '<img src="{}" width="50" height="50" style="border-radius:50%; object-fit:cover;" />',
+                '<img src="{}" width="40" height="40" '
+                'style="border-radius:50%;object-fit:cover;" alt="" />',
                 obj.thumbnail.url,
             )
         return "-"
 
-    model = User
-
-    ordering = ("-date_joined",)
+    @admin.display(boolean=True, description="Email verified", ordering="email_verified_at")
+    def is_email_verified(self, obj):
+        return obj.email_verified_at is not None
 
     list_display = (
         "email",
         "first_name",
         "last_name",
-        "phone_number",
         "thumbnail_preview",
+        "is_email_verified",
         "is_active",
         "is_staff",
         "date_joined",
@@ -37,13 +45,13 @@ class UserAdmin(BaseUserAdmin):
         "is_staff",
         "is_superuser",
         "groups",
+        ("email_verified_at", admin.EmptyFieldListFilter),
     )
 
     search_fields = (
         "email",
         "first_name",
         "last_name",
-        "phone_number",
     )
 
     readonly_fields = (
@@ -51,6 +59,7 @@ class UserAdmin(BaseUserAdmin):
         "date_joined",
         "updated_at",
         "last_login",
+        "email_verified_at",
         "thumbnail_preview",
     )
 
@@ -71,7 +80,6 @@ class UserAdmin(BaseUserAdmin):
                 "fields": (
                     "first_name",
                     "last_name",
-                    "phone_number",
                     "thumbnail",
                     "thumbnail_preview",
                 ),
@@ -94,6 +102,7 @@ class UserAdmin(BaseUserAdmin):
             {
                 "fields": (
                     "last_login",
+                    "email_verified_at",
                     "date_joined",
                     "updated_at",
                 ),
@@ -110,7 +119,6 @@ class UserAdmin(BaseUserAdmin):
                     "email",
                     "first_name",
                     "last_name",
-                    "phone_number",
                     "thumbnail",
                     "password1",
                     "password2",

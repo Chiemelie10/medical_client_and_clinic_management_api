@@ -1,0 +1,46 @@
+{% extends "emails/base.html" %}
+
+{% block title %}Verify your email | NoLineMed{% endblock %}
+
+{% block preheader %}Use code {{ verification_code }} to verify your NoLineMed email address.{% endblock %}
+
+{% block content %}
+  <p style="margin:0 0 12px;color:#0F766E;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;">Email verification</p>
+  <h1 style="margin:0 0 16px;color:#17324D;font-size:30px;font-weight:700;line-height:38px;">Verify your email</h1>
+
+  <p style="margin:0 0 24px;">
+    {% if first_name %}Hello {{ first_name }},{% else %}Hello,{% endif %}
+  </p>
+  <p style="margin:0 0 24px;">
+    Enter this verification code to confirm that <strong>{{ email }}</strong> belongs to you and continue setting up your NoLineMed account.
+  </p>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;">
+    <tr>
+      <td align="center" style="padding:22px 16px;background-color:#E6F5F3;border:1px solid #99D5CF;border-radius:8px;">
+        <div style="margin:0 0 6px;color:#64748B;font-family:Inter,Arial,sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;line-height:18px;text-transform:uppercase;">Your verification code</div>
+        <div class="verification-code" style="color:#17324D;font-family:'Courier New',monospace;font-size:34px;font-weight:700;letter-spacing:8px;line-height:42px;">{{ verification_code }}</div>
+      </td>
+    </tr>
+  </table>
+
+  <p style="margin:0 0 24px;color:#64748B;font-size:14px;line-height:22px;">
+    This code expires in {{ expiration_minutes|default:10 }} minutes. For your security, do not share it with anyone.
+  </p>
+
+  {% if verification_url %}
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;">
+      <tr>
+        <td align="center" bgcolor="#0F766E" style="border-radius:6px;">
+          <a href="{{ verification_url }}" style="display:inline-block;padding:13px 24px;color:#FFFFFF;font-family:Inter,Arial,sans-serif;font-size:15px;font-weight:700;line-height:20px;text-decoration:none;">Verify email address</a>
+        </td>
+      </tr>
+    </table>
+  {% endif %}
+
+  <div style="border-top:1px solid #D8E1E8;padding-top:20px;">
+    <p style="margin:0;color:#64748B;font-size:13px;line-height:20px;">
+      If you did not create a NoLineMed account, you can safely ignore this email. No account access will be granted without verification.
+    </p>
+  </div>
+{% endblock %}

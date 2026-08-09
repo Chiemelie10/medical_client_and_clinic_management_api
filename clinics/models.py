@@ -1,6 +1,4 @@
-import zoneinfo
 import uuid
-
 from django.conf import settings
 from django.contrib.postgres.fields import ArrayField
 from django.contrib.postgres.indexes import GinIndex
@@ -83,11 +81,9 @@ class ClinicSetting(models.Model):
     """
     The class defines the attributes of the ClinicSetting model.
     """
-    TIMEZONE_CHOICES = [(tz, tz) for tz in sorted(zoneinfo.available_timezones())]
-
     id = models.UUIDField(primary_key=True, editable=False, default=uuid.uuid4)
     clinic = models.OneToOneField(Clinic, on_delete=models.CASCADE, related_name="setting")
-    timezone = models.CharField(max_length=63, choices=TIMEZONE_CHOICES, default="UTC")
+    timezone = models.CharField(max_length=255, default="UTC")
     appointment_duration = models.IntegerField(default=30)
     allow_public_booking = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
