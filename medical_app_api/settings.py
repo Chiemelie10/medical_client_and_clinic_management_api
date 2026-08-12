@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
+from datetime import timedelta
 from pathlib import Path
 from dotenv import load_dotenv
 import os
@@ -54,10 +55,14 @@ INSTALLED_APPS = [
     "clinics.apps.ClinicsConfig",
     "locations.apps.LocationsConfig",
     "access_control.apps.AccessControlConfig",
+
+    "corsheaders",
+    "rest_framework_simplejwt",
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    "corsheaders.middleware.CorsMiddleware",
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -176,6 +181,9 @@ CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL")
 # Email verification OTP expiration duration in seconds
 EMAIL_OTP_EXPIRATION = int(os.getenv("EMAIL_OTP_EXPIRATION", "600"))
 
+# Change password expiration duration in seconds
+CHANGE_PASSWORD_EXPIRATION = int(os.getenv("CHANGE_PASSWORD_EXPIRATION", "300"))
+
 # Cache configuration
 CACHES = {
     "default": {
@@ -185,8 +193,33 @@ CACHES = {
 }
 
 REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "accounts.authentication.CustomJwtAuthentication",
+    ),
     "EXCEPTION_HANDLER": "medical_app_api.exceptions.custom_exception_handler",
 }
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=10),
+    "REFRESH_TOKEN_LIFETIME": timedelta(weeks=4),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "UPDATE_LAST_LOGIN": False,
+
+    "ALGORITHM": "RS256",
+    "SIGNING_KEY": os.getenv("JWT_PRIVATE_KEY", ""), # Private Key
+    "VERIFYING_KEY": os.getenv("JWT_PUBLIC_KEY", ""), # Public Key
+    "AUDIENCE": "http://127.0.0.1:3000",
+    "ISSUER": "http://127.0.0.1:8000",
+}
+
+# CORS configuration
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+CORS_ALLOW_CREDENTIALS = True
 
 # Logging configuration
 LOGGING = {

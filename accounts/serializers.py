@@ -1,7 +1,10 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from rest_framework import serializers
+from rest_framework.exceptions import AuthenticationFailed
+from .services.auth_service import AuthService
 
 
 User = get_user_model()
@@ -44,6 +47,12 @@ class RegisterUserSerializer(serializers.Serializer):
         return email
     
 
+class LoginUserSerializer(serializers.Serializer):
+    """This class validates user login request."""
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True)
+
+
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -78,25 +87,80 @@ class UserSerializer(serializers.ModelSerializer):
 
         return data
 
+
 class VerifyEmailSerializer(serializers.Serializer):
     """This class validates email verification request."""
     otp = serializers.CharField()
     reference_token = serializers.CharField()
 
-class RequestOtpSerializer(serializers.Serializer):
-    """This class validates email verification OTP request."""
-    email = serializers.EmailField()
 
-    def validate_email(self, value: str) -> str:
-        """This method validates the email field."""
-        email = value.strip().lower()
+class PasswordResetSerializer(serializers.Serializer):
+    """This class validates password reset request."""
+    new_password = serializers.CharField()
+    new_password_confirmation = serializers.CharField(write_only=True)
+    reference_token = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        """
+        - Validates password rules.
+        - Checks if password and password confirmation fields match.
+        - Validates that same user that received and submitted the OTP is the one changing the password.
+        """
+
+        new_password = data.get("new_password")
+        new_password_confirmation = data.get("new_password_confirmation")
+        reference_token = data.get("reference_token")
+
+        if new_password != new_password_confirmation:
+            raise serializers.ValidationError({"new_password_confirmation": "Passwords do not match."})
+        
+        password_reset_key = AuthService._cache_key(
+            reference_token=reference_token,
+            purpose=AuthService.PURPOSE_PASSWORD_RESET
+        )
+
+        cached_data = cache.get(password_reset_key)
+
+        if cached_data is None:
+            raise AuthenticationFailed("User not recognised.")
 
         try:
-            user = User.objects.only('id', 'email_verified_at').get(email__iexact=email)
+            user = User.objects.get(id=cached_data["user_id"])
+            validate_password(new_password, user=user)
 
-            if user.email_verified_at:
-                raise serializers.ValidationError("Email has already been verified.")
         except User.DoesNotExist:
-            raise serializers.ValidationError("Email was not found.")
+            raise AuthenticationFailed("User not recognised.")
 
-        return email
+        except ValidationError as e:
+            raise serializers.ValidationError({"new_password": list(e.messages)})
+        
+        data["user"] = user
+
+        return data
+
+
+class RequestOtpSerializer(serializers.Serializer):
+    """This class validates email verification or password reset OTP request."""
+
+    PURPOSE_CHOICES = [
+        (AuthService.PURPOSE_EMAIL_VERIFICATION, "Email Verification"),
+        (AuthService.PURPOSE_OTP_VALIDATION, "OTP Validation")
+    ]
+
+    email = serializers.EmailField()
+    purpose = serializers.ChoiceField(choices=PURPOSE_CHOICES)
+
+    def validate(self, data):
+        """This method validates the email field."""
+        email = data.get("email")
+        purpose = data.get("purpose")
+
+        user = User.objects.filter(email__iexact=email).values('id', 'email_verified_at').first()
+
+        if user is None:
+            raise serializers.ValidationError({"email": "Email was not found."})
+
+        if purpose == AuthService.PURPOSE_EMAIL_VERIFICATION and user.email_verified_at:
+            raise serializers.ValidationError({"email": "Email has already been verified."})
+
+        return data

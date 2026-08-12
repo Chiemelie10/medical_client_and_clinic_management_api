@@ -2,3 +2,4 @@
 __pycache__/
 *.pyc
 .med_app_venv/
+logs

@@ -13,7 +13,7 @@ from django.template.loader import render_to_string
     enqueue_on_commit=True
 )
 def send_email_verification_otp(email: str, otp: str):
-    """This function sends OTP to the provided email."""
+    """This function sends email verification OTP to the provided email."""
 
     otp_expiration = settings.EMAIL_OTP_EXPIRATION // 60
 
@@ -33,6 +33,38 @@ def send_email_verification_otp(email: str, otp: str):
 
     email_message = EmailMultiAlternatives(
         subject="Email Verification OTP",
+        body=text_coontent,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[email],
+    )
+
+    email_message.attach_alternative(
+        html_content, "text/html"
+    )
+
+    email_message.send()
+
+def send_password_reset_otp(email: str, otp: str):
+    """This function sends OTP to the provided email for password reset."""
+
+    otp_expiration = settings.EMAIL_OTP_EXPIRATION // 60
+
+    context = {
+        "otp": otp,
+        "email": email,
+        "expiration_minutes": otp_expiration
+    }
+
+    html_content = render_to_string(
+        "accounts/emails/password_reset_otp.html",
+        context
+    )
+
+    text_coontent = f"Your password reset code is {otp} " \
+        f"This code expires in {otp_expiration} minutes."
+
+    email_message = EmailMultiAlternatives(
+        subject="Password Reset OTP",
         body=text_coontent,
         from_email=settings.DEFAULT_FROM_EMAIL,
         to=[email],

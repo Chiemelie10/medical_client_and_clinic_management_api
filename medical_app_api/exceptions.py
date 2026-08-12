@@ -1,6 +1,9 @@
 import logging
 
-from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
+from django.core.exceptions import (
+    ObjectDoesNotExist,
+    PermissionDenied as DjangoPermissionDenied
+)
 from django.http import Http404
 from rest_framework import status
 from rest_framework.exceptions import (
@@ -91,6 +94,16 @@ def custom_exception_handler(exc, context):
             {
                 "success": False,
                 "message": "The requested resource was not found.",
+                "errors": None,
+            },
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    if isinstance(exc, ObjectDoesNotExist):
+        return Response(
+            {
+                "success": False,
+                "message": str(exc),
                 "errors": None,
             },
             status=status.HTTP_404_NOT_FOUND,
