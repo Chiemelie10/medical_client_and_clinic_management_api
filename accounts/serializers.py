@@ -164,3 +164,30 @@ class RequestOtpSerializer(serializers.Serializer):
             raise serializers.ValidationError({"email": "Email has already been verified."})
 
         return data
+
+
+# Response serializers used by the generated OpenAPI documentation.
+class MessageResponseSerializer(serializers.Serializer):
+    message = serializers.CharField()
+
+
+class ReferenceTokenResponseSerializer(MessageResponseSerializer):
+    reference_token = serializers.UUIDField()
+
+
+class UserDataResponseSerializer(MessageResponseSerializer):
+    data = UserSerializer(read_only=True)
+
+
+class RegistrationResponseSerializer(ReferenceTokenResponseSerializer):
+    data = UserSerializer(read_only=True)
+
+
+class LoginResponseSerializer(UserDataResponseSerializer):
+    access_token = serializers.CharField()
+
+
+class ApiErrorResponseSerializer(serializers.Serializer):
+    success = serializers.BooleanField(default=False)
+    message = serializers.CharField()
+    errors = serializers.JSONField(required=False, allow_null=True)

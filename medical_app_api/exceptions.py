@@ -16,6 +16,10 @@ from rest_framework.exceptions import (
 )
 from rest_framework.response import Response
 from rest_framework.views import exception_handler
+from rest_framework_simplejwt.exceptions import (
+    InvalidToken,
+    AuthenticationFailed as SimpleJwtAuthenticationFailed
+)
 
 
 logger = logging.getLogger(__name__)
@@ -50,6 +54,26 @@ def custom_exception_handler(exc, context):
     # -----------------------------
     # Authentication
     # -----------------------------
+    if isinstance(
+        exc,
+        (InvalidToken, SimpleJwtAuthenticationFailed)
+    ):
+        detail = exc.detail
+
+        if isinstance(detail, dict):
+            message = detail.get("detail", "Invalid or expired token.",)
+        else:
+            message = detail
+
+        return Response(
+            {
+                "success": False,
+                "message": str(message),
+                "errors": None,
+            },
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+
     if isinstance(exc, NotAuthenticated):
         return Response(
             {
@@ -61,6 +85,13 @@ def custom_exception_handler(exc, context):
         )
 
     if isinstance(exc, AuthenticationFailed):
+        detail = exc.detail
+
+        if isinstance(detail, dict):
+            message = detail.get("detail", "Unauthenticated.")
+        else:
+            message = detail
+
         return Response(
             {
                 "success": False,
@@ -132,7 +163,9 @@ def custom_exception_handler(exc, context):
         if isinstance(response.data, dict):
             detail = response.data.get("detail")
 
-            if detail:
+            if isinstance(detail, dict):
+                message = detail.get("detail", message)
+            else:
                 message = str(detail)
 
         return Response(

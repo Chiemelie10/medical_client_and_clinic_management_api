@@ -57,7 +57,9 @@ INSTALLED_APPS = [
     "access_control.apps.AccessControlConfig",
 
     "corsheaders",
+    "rest_framework",
     "rest_framework_simplejwt",
+    'drf_spectacular',
 ]
 
 MIDDLEWARE = [
@@ -197,6 +199,39 @@ REST_FRAMEWORK = {
         "accounts.authentication.CustomJwtAuthentication",
     ),
     "EXCEPTION_HANDLER": "medical_app_api.exceptions.custom_exception_handler",
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'NoLineMed API',
+    'DESCRIPTION': (
+        'API documentation for NoLineMed, including authentication, email '
+        'verification, and password recovery workflows.'
+    ),
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'TAGS': [
+        {
+            'name': 'Authentication',
+            'description': (
+                'Account registration, authentication, token revocation, email '
+                'verification, and password recovery.'
+            ),
+        },
+    ],
+    "APPEND_COMPONENTS": {
+        "securitySchemes": {
+            "bearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT",
+                "description": (
+                    "Enter the access token returned by login. "
+                    "Do not include the 'Bearer' prefix."
+                ),
+            },
+        },
+    },
 }
 
 SIMPLE_JWT = {
