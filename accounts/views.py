@@ -8,13 +8,15 @@ from drf_spectacular.utils import (
 )
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.exceptions import NotAuthenticated
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework_simplejwt.views import TokenRefreshView
 from .services.auth_service import AuthService
 from .serializers import (
     ApiErrorResponseSerializer,
+    CustomTokenRefreshSerializer,
     LoginUserSerializer,
     LoginResponseSerializer,
     MessageResponseSerializer,
@@ -23,6 +25,7 @@ from .serializers import (
     RegistrationResponseSerializer,
     RegisterUserSerializer,
     RequestOtpSerializer,
+    TokenRefreshResponseSerializer,
     UserDataResponseSerializer,
     UserSerializer,
     VerifyEmailSerializer,
@@ -679,3 +682,95 @@ class AuthView(viewsets.ViewSet):
             },
             status=status.HTTP_200_OK
         )
+
+
+class CustomTokenRefreshView(TokenRefreshView):
+    """Rotate the refresh cookie and return a new access token."""
+
+    serializer_class = CustomTokenRefreshSerializer
+
+    @extend_schema(
+        operation_id="auth_refresh_token",
+        summary="Refresh an access token",
+        description=(
+            "Reads the signed JWT from the HTTP-only `refresh_token` cookie, "
+            "rejects it if it has been revoked in Redis, and rotates it. The new "
+            "access token is returned in the response body and the rotated refresh "
+            "token replaces the existing HTTP-only cookie. The submitted refresh "
+            "token is revoked after a successful rotation and cannot be reused."
+        ),
+        tags=["Authentication"],
+        auth=[],
+        request=None,
+        parameters=[
+            OpenApiParameter(
+                name="Set-Cookie",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.HEADER,
+                response=[200],
+                description=(
+                    "Replaces `refresh_token` with the rotated JWT. The cookie is "
+                    "HTTP-only, uses `SameSite=Lax`, and is `Secure` outside debug mode."
+                ),
+            ),
+        ],
+        responses={
+            200: OpenApiResponse(
+                response=TokenRefreshResponseSerializer,
+                description="The refresh token was rotated and a new access token was issued.",
+                examples=[
+                    OpenApiExample(
+                        "Token refreshed",
+                        value={
+                            "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9..."
+                        },
+                    )
+                ],
+            ),
+            401: OpenApiResponse(
+                response=ApiErrorResponseSerializer,
+                description=(
+                    "The refresh cookie is missing, expired, malformed, or revoked, "
+                    "or its account is inactive."
+                ),
+                examples=[
+                    OpenApiExample(
+                        "Refresh token revoked",
+                        value={
+                            "success": False,
+                            "message": "The refresh token has been revoked.",
+                            "errors": None,
+                        },
+                    )
+                ],
+            ),
+        },
+    )
+    def post(self, request, *args, **kwargs):
+        refresh_token = request.COOKIES.get("refresh_token")
+
+        if not refresh_token:
+            raise NotAuthenticated("Refresh token cookie was not provided.")
+
+        serializer = self.get_serializer(data={"refresh": refresh_token})
+        serializer.is_valid(raise_exception=True)
+
+        rotated_refresh_token = serializer.validated_data.get("refresh")
+        response = Response(
+            {
+                "access_token": serializer.validated_data["access"]
+            },
+            status=status.HTTP_200_OK,
+        )
+
+        if rotated_refresh_token:
+            response.set_cookie(
+                key="refresh_token",
+                value=rotated_refresh_token,
+                max_age=int(settings.SIMPLE_JWT["REFRESH_TOKEN_LIFETIME"].total_seconds()),
+                httponly=True,
+                secure=not settings.DEBUG,
+                samesite="Lax",
+            )
+
+        return response

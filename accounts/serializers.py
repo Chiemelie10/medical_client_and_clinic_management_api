@@ -4,6 +4,9 @@ from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from rest_framework import serializers
 from rest_framework.exceptions import AuthenticationFailed
+from rest_framework_simplejwt.exceptions import InvalidToken
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
+from rest_framework_simplejwt.tokens import RefreshToken
 from .services.auth_service import AuthService
 
 
@@ -166,6 +169,23 @@ class RequestOtpSerializer(serializers.Serializer):
         return data
 
 
+class CustomTokenRefreshSerializer(TokenRefreshSerializer):
+    """Rotate a refresh token after applying the Redis revocation policy."""
+
+    def validate(self, attrs):
+        refresh_token_string = attrs["refresh"]
+        refresh_token = RefreshToken(refresh_token_string)
+
+        if AuthService.is_token_blacklisted(token=refresh_token):
+            raise InvalidToken("The refresh token has been revoked.")
+
+        data = super().validate(attrs)
+
+        AuthService.blacklist_token(token_string=refresh_token_string)
+
+        return data
+
+
 # Response serializers used by the generated OpenAPI documentation.
 class MessageResponseSerializer(serializers.Serializer):
     message = serializers.CharField()
@@ -185,6 +205,10 @@ class RegistrationResponseSerializer(ReferenceTokenResponseSerializer):
 
 class LoginResponseSerializer(UserDataResponseSerializer):
     access_token = serializers.CharField()
+
+
+class TokenRefreshResponseSerializer(serializers.Serializer):
+    access_token = serializers.CharField(read_only=True)
 
 
 class ApiErrorResponseSerializer(serializers.Serializer):
