@@ -2,14 +2,17 @@ import hashlib
 import secrets
 import time
 import uuid
+from access_control.models import ClinicUserGroup
 from accounts.exceptions import InvalidOTP, ExpiredOTP
 from accounts.tasks import (
     send_email_verification_otp,
     send_password_reset_otp
 )
+from clinics.models import Clinic
 from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model
 from django.core.cache import cache
+from django.db.models import Prefetch
 from django.utils import timezone
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.request import Request
@@ -151,6 +154,8 @@ class AuthService:
         if user_id is None:
             raise InvalidOTP()
 
+        cache.delete(otp_validation_key)
+
         cache.set(
             key=cls._cache_key(
                 reference_token=reference_token,
@@ -182,7 +187,7 @@ class AuthService:
             'refresh': str(refresh),
             'access': str(refresh.access_token),
         }
-    
+
     @classmethod
     def login_user(cls, *, request: Request, email: str, password: str):
         """This method authenticates a user."""
@@ -290,4 +295,36 @@ class AuthService:
         if revoked_at is None:
             return False
 
-        return int(issued_at) <= int(revoked_at)    
+        return int(issued_at) <= int(revoked_at)
+
+    @classmethod
+    def me(cls, *, user_id: str):
+        """Returns the user details"""
+        roles_prefetch = Prefetch(
+            "user_groups",
+            queryset=ClinicUserGroup.objects.filter(
+                user_id=user_id,
+                is_active=True
+            ).select_related("group"),
+            to_attr="user_roles_at_clinic"
+        )
+
+        user = (
+            User.objects
+            .prefetch_related(
+                Prefetch(
+                    "clinics_joined",
+                    queryset=Clinic.objects.filter(
+                        is_active=True,
+                        memberships__user_id=user_id,
+                        memberships__is_active=True,
+                    )
+                    .distinct()
+                    .order_by("name")
+                    .prefetch_related(roles_prefetch)
+                )
+            )
+            .get(pk=user_id)
+        )
+
+        return user

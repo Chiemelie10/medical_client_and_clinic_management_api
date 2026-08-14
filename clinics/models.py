@@ -42,8 +42,8 @@ class ClinicMembership(models.Model):
     The class defines the attributes of the ClinicMembership model.
     """
     id = models.UUIDField(primary_key=True, editable=False, default=uuid.uuid4)
-    clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, related_name="memberships")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="clinic_memberships")
     is_active = models.BooleanField(default=True)
     specializations = ArrayField(
         models.CharField(max_length=255),

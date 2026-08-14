@@ -35,6 +35,18 @@ from .serializers import (
 class AuthView(viewsets.ViewSet):
     permission_classes = [AllowAny]
 
+    @staticmethod
+    def _serialize_user(*, user_id, request: Request) -> dict:
+        """Serialize a user with active clinic memberships and roles prefetched."""
+        user = AuthService.me(user_id=user_id)
+        return UserSerializer(
+            user,
+            context={
+                "request": request,
+                "is_account_owner": True,
+            },
+        ).data
+
     @extend_schema(
         operation_id="auth_register",
         summary="Register a user account",
@@ -84,6 +96,7 @@ class AuthView(viewsets.ViewSet):
                         "date_joined": "2026-08-12T08:30:00Z",
                         "updated_at": "2026-08-12T08:30:00Z",
                         "email_verified_at": None,
+                        "clinics": [],
                     },
                 },
             ),
@@ -108,13 +121,10 @@ class AuthView(viewsets.ViewSet):
 
         data = AuthService.register_user(email=email, password=password)
 
-        user_data = UserSerializer(
-            data["user"],
-            context={
-                "request": request,
-                "is_registration": True
-            }
-        ).data
+        user_data = self._serialize_user(
+            user_id=data["user"].id,
+            request=request,
+        )
 
         return Response(
             {
@@ -125,7 +135,7 @@ class AuthView(viewsets.ViewSet):
             },
             status=status.HTTP_201_CREATED
         )
-    
+
     @extend_schema(
         operation_id="auth_login",
         summary="Log in",
@@ -173,7 +183,7 @@ class AuthView(viewsets.ViewSet):
             OpenApiExample(
                 "Login successful",
                 response_only=True,
-                status_codes=["201"],
+                status_codes=["200"],
                 value={
                     "message": "Login successful.",
                     "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9...",
@@ -187,6 +197,13 @@ class AuthView(viewsets.ViewSet):
                         "date_joined": "2026-08-12T08:30:00Z",
                         "updated_at": "2026-08-12T08:45:00Z",
                         "email_verified_at": "2026-08-12T08:35:00Z",
+                        "clinics": [
+                            {
+                                "id": "35ba68ed-f74a-446b-83df-760f5314c9ec",
+                                "name": "NoLineMed Clinic",
+                                "roles": ["Clinic Administrator", "Doctor"],
+                            }
+                        ],
                     },
                 },
             ),
@@ -215,13 +232,10 @@ class AuthView(viewsets.ViewSet):
             password=password
         )
 
-        user_data = UserSerializer(
-            data["user"],
-            context={
-                "request": request,
-                "is_registration": True
-            }
-        ).data
+        user_data = self._serialize_user(
+            user_id=data["user"].id,
+            request=request,
+        )
 
         response = Response(
             {
@@ -242,6 +256,84 @@ class AuthView(viewsets.ViewSet):
         )
 
         return response
+
+    @extend_schema(
+        operation_id="auth_me",
+        summary="Get the authenticated user",
+        description=(
+            "Returns the authenticated user's account details, active clinic "
+            "memberships, and active roles within each clinic. Inactive clinics, "
+            "inactive memberships, and inactive role assignments are excluded. "
+            "Send the access token as `Authorization: Bearer <token>`."
+        ),
+        tags=["Authentication"],
+        auth=[{"bearerAuth": []}],
+        request=None,
+        responses={
+            200: OpenApiResponse(
+                response=UserDataResponseSerializer,
+                description=(
+                    "The authenticated user and their active clinic-role context."
+                ),
+                examples=[
+                    OpenApiExample(
+                        "Authenticated user",
+                        value={
+                            "message": "User fetched successfully",
+                            "data": {
+                                "id": "3fdae292-7b93-4396-95c9-5a373ef0576d",
+                                "email": "ada@clinic.example",
+                                "first_name": "Ada",
+                                "last_name": "Okafor",
+                                "thumbnail": None,
+                                "is_active": True,
+                                "date_joined": "2026-08-12T08:30:00Z",
+                                "updated_at": "2026-08-12T08:45:00Z",
+                                "email_verified_at": "2026-08-12T08:35:00Z",
+                                "clinics": [
+                                    {
+                                        "id": "35ba68ed-f74a-446b-83df-760f5314c9ec",
+                                        "name": "NoLineMed Clinic",
+                                        "roles": [
+                                            "Clinic Administrator",
+                                            "Doctor",
+                                        ],
+                                    }
+                                ],
+                            },
+                        },
+                    )
+                ],
+            ),
+            401: OpenApiResponse(
+                response=ApiErrorResponseSerializer,
+                description=(
+                    "The bearer access token is missing, invalid, expired, or revoked."
+                ),
+            ),
+        },
+    )
+    @action(
+        detail=False,
+        methods=["get"],
+        permission_classes=[IsAuthenticated],
+        url_path="me",
+        url_name="me",
+    )
+    def me(self, request: Request):
+        """Returns the authenticated user details."""
+        user_data = self._serialize_user(
+            user_id=request.user.id,
+            request=request,
+        )
+
+        return Response(
+            {
+                "message": "User fetched successfully",
+                "data": user_data
+            },
+            status=status.HTTP_200_OK
+        )
 
     @extend_schema(
         operation_id="auth_logout",
@@ -278,15 +370,28 @@ class AuthView(viewsets.ViewSet):
     def logout_user(self, request: Request):
         """This method logs out a user by blacklisting their access token."""
         access_token = str(request.auth)
+        refresh_token = request.COOKIES.get("refresh_token")
 
         AuthService.blacklist_token(token_string=access_token)
 
-        return Response(
+        if (refresh_token):
+            AuthService.blacklist_token(token_string=refresh_token)
+
+        response = Response(
             {
                 "message": "Logout successful"
             },
             status=status.HTTP_200_OK
         )
+
+        response.delete_cookie(
+            key="refresh_token",
+            httponly=True,
+            secure=not settings.DEBUG,
+            samesite="Lax",
+        )
+
+        return response
 
     @extend_schema(
         operation_id="auth_revoke_all_tokens",
@@ -433,6 +538,13 @@ class AuthView(viewsets.ViewSet):
                                 "date_joined": "2026-08-12T08:30:00Z",
                                 "updated_at": "2026-08-12T08:45:00Z",
                                 "email_verified_at": "2026-08-12T08:45:00Z",
+                                "clinics": [
+                                    {
+                                        "id": "35ba68ed-f74a-446b-83df-760f5314c9ec",
+                                        "name": "NoLineMed Clinic",
+                                        "roles": ["Clinic Administrator"],
+                                    }
+                                ],
                             },
                         },
                     )
@@ -486,13 +598,10 @@ class AuthView(viewsets.ViewSet):
             otp=otp
         )
 
-        user_data = UserSerializer(
-            user,
-            context={
-                "request": request,
-                "is_registration": True
-            }
-        ).data
+        user_data = self._serialize_user(
+            user_id=user.id,
+            request=request,
+        )
 
         return Response(
             {
@@ -607,6 +716,13 @@ class AuthView(viewsets.ViewSet):
                                 "date_joined": "2026-08-12T08:30:00Z",
                                 "updated_at": "2026-08-12T09:00:00Z",
                                 "email_verified_at": "2026-08-12T08:45:00Z",
+                                "clinics": [
+                                    {
+                                        "id": "35ba68ed-f74a-446b-83df-760f5314c9ec",
+                                        "name": "NoLineMed Clinic",
+                                        "roles": ["Clinic Administrator"],
+                                    }
+                                ],
                             },
                         },
                     )
@@ -667,13 +783,10 @@ class AuthView(viewsets.ViewSet):
             user=user
         )
 
-        user_data = UserSerializer(
-            user,
-            context={
-                "request": request,
-                "is_registration": True
-            }
-        ).data
+        user_data = self._serialize_user(
+            user_id=user.id,
+            request=request,
+        )
 
         return Response(
             {

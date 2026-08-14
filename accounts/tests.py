@@ -129,7 +129,7 @@ class CustomTokenRefreshViewTests(SimpleTestCase):
 
         serializer.is_valid.assert_called_once_with(raise_exception=True)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data, {"access": "new-access-token"})
+        self.assertEqual(response.data, {"access_token": "new-access-token"})
         self.assertEqual(
             response.cookies["refresh_token"].value,
             "rotated-refresh-token",

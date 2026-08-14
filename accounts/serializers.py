@@ -1,3 +1,4 @@
+from clinics.serializers import UserClinicSerializer
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.cache import cache
@@ -57,6 +58,8 @@ class LoginUserSerializer(serializers.Serializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    clinics = UserClinicSerializer(source="clinics_joined", many=True, read_only=True)
+
     class Meta:
         model = User
         fields = [
@@ -68,7 +71,8 @@ class UserSerializer(serializers.ModelSerializer):
             "is_active",
             "date_joined",
             "updated_at",
-            "email_verified_at"
+            "email_verified_at",
+            "clinics"
         ]
         read_only_fields = fields
 
@@ -76,7 +80,7 @@ class UserSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
 
         request = self.context.get("request")
-        is_registration = self.context.get("is_registration", False)
+        is_account_owner = self.context.get("is_account_owner", False)
 
         is_owner = (
             request
@@ -85,7 +89,7 @@ class UserSerializer(serializers.ModelSerializer):
             and request.user.id == instance.id
         )
 
-        if not is_owner and not is_registration:
+        if not is_owner and not is_account_owner:
             data["email"] = ""
 
         return data
@@ -136,6 +140,8 @@ class PasswordResetSerializer(serializers.Serializer):
 
         except ValidationError as e:
             raise serializers.ValidationError({"new_password": list(e.messages)})
+
+        cache.delete(password_reset_key)
         
         data["user"] = user
 
